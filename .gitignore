@@ -35,5 +35,3 @@ dist/
 /.vs
 /assets
 /examples
-/src/transcription/whisper.py
-/src/transcription/senseVoiceSmall.py
