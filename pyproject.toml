@@ -102,3 +102,20 @@ py-modules = ["src.windows_app"]
 
 [tool.setuptools.package-data]
 "*" = ["*.png", "*.jpg", "*.svg", "*.ico", "*.ttf", "*.otf", "*.json", "*.wav"]
+
+[tool.uv]
+requirements = "requirements.txt"
+requirements-in = "requirements.in"
+requirements-dev = "requirements-dev.txt"
+requirements-dev-in = "requirements-dev.in"
+requirements-test = "requirements-test.txt"
+requirements-test-in = "requirements-test.in"
+
+[tool.uv.scripts]
+compile = "uv pip compile requirements.in -o requirements.txt"
+compile-dev = "uv pip compile requirements-dev.in -o requirements-dev.txt"
+compile-test = "uv pip compile requirements-test.in -o requirements-test.txt"
+sync = "uv pip sync requirements.txt requirements-dev.txt requirements-test.txt"
+install = "uv pip install -e ."
+install-dev = "uv pip install -e .[dev]"
+install-test = "uv pip install -e .[test]"

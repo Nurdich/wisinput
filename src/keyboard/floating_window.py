@@ -71,10 +71,29 @@ class FloatingWindow:
         # 启动鼠标监听
         self._start_mouse_listener()
         
+        # 添加快捷键绑定
+        self.window.bind('<Control-i>', lambda e: self._show_window_info())
+        
         # 常驻显示模式：创建后立即显示在屏幕右下角
         if self.mode == "status":
             self._show_persistent_icon()
     
+    def _show_window_info(self):
+        """显示当前窗口状态信息"""
+        try:
+            focused = self.window.focus_get()
+            if focused:
+                info = f"当前焦点控件: {focused.__class__.__name__}\n"
+                info += f"是否为文本框: {isinstance(focused, tk.Text)}\n"
+                info += f"是否可编辑: {focused.cget('state') != 'disabled' if hasattr(focused, 'cget') else '未知'}"
+                if self.mode != 'status':
+                    self.status_label.config(text=info)
+                logger.info(info)
+            else:
+                logger.info("当前窗口没有焦点控件")
+        except Exception as e:
+            logger.error(f"获取窗口状态失败: {e}")
+
     def _create_window(self):
         """创建悬浮窗"""
         self.window = tk.Tk()
@@ -292,9 +311,16 @@ class FloatingWindow:
             screen_width = self.window.winfo_screenwidth()
             screen_height = self.window.winfo_screenheight()
             
-            # 固定在右下角，留出任务栏空间
-            pos_x = screen_width - self.window_width - 20
-            pos_y = screen_height - self.window_height - 80
+            # 计算任务栏列数
+            taskbar_columns = screen_width // (self.window_width + 20)  # 20px为图标间距
+            
+            # 计算居中位置
+            total_width = taskbar_columns * (self.window_width + 20) - 20  # 减去最后一个间距
+            start_x = (screen_width - total_width) // 2
+            
+            # 固定在任务栏上方中间位置
+            pos_x = start_x + (taskbar_columns // 2) * (self.window_width + 20)
+            pos_y = screen_height - self.window_height - 80  # 留出任务栏空间
             
             self.window.geometry(f"{self.window_width}x{self.window_height}+{pos_x}+{pos_y}")
             self.window.deiconify()
@@ -374,6 +400,12 @@ class FloatingWindow:
     def _on_mouse_down(self, event):
         """鼠标按下事件"""
         self.window.focus_set()
+        # 确保文本输入框获得焦点
+        if getattr(self, 'text_widget', None):
+            try:
+                self.text_widget.focus_set()
+            except Exception:
+                pass
     
     def _on_mouse_drag(self, event):
         """鼠标拖拽事件"""
@@ -1015,6 +1047,10 @@ class FloatingWindow:
                     text="⏹️ 停止",
                     bg='#e74c3c'
                 )
+            
+            # 确保文本输入框获得焦点
+            if getattr(self, 'text_widget', None):
+                self.text_widget.focus_set()
             if getattr(self, 'icon_canvas', None):
                 logger.info("切换到录音状态，启动动画")
                 self._start_recording_anim()
@@ -1025,26 +1061,29 @@ class FloatingWindow:
             self.on_record_start()
             logger.info("悬浮窗：开始录音")
         else:
-            # 停止录音
+            # 停止录音 - 立即更新状态
             self.is_recording = False
+            if getattr(self, 'icon_canvas', None) and getattr(self, '_anim_job', None):
+                self.window.after_cancel(self._anim_job)
+                self._anim_job = None
+            
+            # 立即绘制静止图标
+            if getattr(self, 'icon_canvas', None):
+                self._draw_idle_icon()
+                
+            # 更新其他UI元素
             if getattr(self, 'record_button', None):
                 self.record_button.configure(
                     text="🎤 录音",
                     bg='#3498db'
                 )
-            if getattr(self, 'icon_canvas', None):
-                # 停止动画并绘制静止图标
-                logger.info("停止录音，停止动画")
-                if getattr(self, '_anim_job', None):
-                    self.window.after_cancel(self._anim_job)
-                    self._anim_job = None
-                self._draw_idle_icon()
-            else:
-                logger.warning("icon_canvas 不存在，无法停止动画")
             if getattr(self, 'status_label', None):
-                self.status_label.configure(text="🔄 正在转录...")
-            self.on_record_stop()
+                self.status_label.configure(text="准备就绪")
+            
             logger.info("悬浮窗：停止录音")
+            
+            # 最后调用停止回调，避免回调中的状态更新覆盖我们的UI状态
+            self.on_record_stop()
     
     def _toggle_translation(self):
         """切换翻译录音状态"""
@@ -1093,6 +1132,11 @@ class FloatingWindow:
             self.text_widget.delete('1.0', tk.END)
             if text:
                 self.text_widget.insert(tk.END, text)
+            # 确保文本输入框获得焦点
+            try:
+                self.text_widget.focus_set()
+            except Exception:
+                pass
 
     # --- 计时与电平显示 ---
     def _start_timer(self):

@@ -2,6 +2,7 @@ import os
 import time
 from functools import wraps
 import threading
+from io import BytesIO
 
 import dotenv
 from google import genai
@@ -72,15 +73,20 @@ class GoogleAiProcessor:
         self.timeout_seconds = self.DEFAULT_TIMEOUT
         self.model = self.DEFAULT_MODEL
         self.translate_processor = TranslateProcessor()
-
     @timeout_decorator(15)
-    def _call_google_asr(self, mode: str, audio_data: bytes, prompt: str):
+    def _call_google_asr(self, mode: str, audio_data, prompt: str):
         if not self.google_client:
             raise RuntimeError("Google 客户端未配置")
 
-        parts = [
-            types.Part.from_bytes(data=audio_data, mime_type="audio/wav"),
-        ]
+        # 统一转成 bytes
+        if isinstance(audio_data, BytesIO):
+            audio_bytes = audio_data.getvalue()
+        elif isinstance(audio_data, (bytes, bytearray)):
+            audio_bytes = bytes(audio_data)
+        else:
+            raise TypeError(f"audio_data 类型无效: {type(audio_data)}，需要 bytes 或 BytesIO")
+
+        parts = [types.Part.from_bytes(data=audio_bytes, mime_type="audio/wav")]
         if prompt:
             parts.insert(0, types.Part.from_text(prompt))
 
@@ -94,7 +100,6 @@ class GoogleAiProcessor:
             ),
         )
         return str(response.text or "").strip()
-
     def process_audio(self, audio_buffer: bytes, mode: str = "transcriptions", prompt: str = ""):
         try:
             start = time.time()

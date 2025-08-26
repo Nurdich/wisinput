@@ -47,7 +47,7 @@ class TrayApp:
         os.environ.setdefault("FLOATING_WINDOW_MODE", "status")
 
         # 选择 ASR 处理器（与 main.py 一致）
-        service_platform = os.getenv("SERVICE_PLATFORM", "google").lower()
+        service_platform = os.getenv("SERVICE_PLATFORM", "local").lower()
         if service_platform == "google":
             self.audio_processor = GoogleAiProcessor()
         elif service_platform == "local":
@@ -101,29 +101,44 @@ class TrayApp:
         if self.floating_window:
             try:
                 # 托盘触发时直接切换录音状态（status模式图标是常驻的）
-                self.floating_window.window.after(0, lambda: (
-                    self.floating_window.reset_wave(),
-                    self.floating_window._toggle_recording() if not self.floating_window.is_recording else None
-                ))
+                self.floating_window.reset_wave()
+                if not self.floating_window.is_recording:
+                    self.floating_window._toggle_recording()
             except Exception as e:
                 logger.warning(f"托盘触发悬浮窗失败: {e}")
         self.is_recording_transcription = True
 
     def stop_transcription_recording(self):
-        audio = self.audio_recorder.stop_recording()
+        # 立即停止录音并更新UI状态
         self.is_recording_transcription = False
+        if self.floating_window and self.floating_window.is_recording:
+            try:
+                self.floating_window._toggle_recording()
+            except Exception as e:
+                logger.warning(f"停止录音动画失败: {e}")
+        
+        # 获取录音数据
+        audio = self.audio_recorder.stop_recording()
+        
+        # 确保文本输入框获得焦点
+        if self.floating_window and hasattr(self.floating_window, 'text_widget'):
+            try:
+                self.floating_window.text_widget.focus_set()
+            except Exception:
+                pass
+
         if audio == "TOO_SHORT":
             logger.warning("录音时长太短，状态将重置")
             if self.floating_window:
                 try:
-                    self.floating_window.window.after(0, lambda: self.floating_window.update_status("⚠️ 录音时长过短"))
+                    self.floating_window.set_text("⚠️ 录音时长过短")
                 except Exception:
                     pass
             self.keyboard_manager.reset_state()
         elif audio:
             if self.floating_window:
                 try:
-                    self.floating_window.window.after(0, lambda: self.floating_window.update_status("🔄 正在转录..."))
+                    self.floating_window.set_text("🔄 正在转录...")
                 except Exception:
                     pass
             result = self.audio_processor.process_audio(
@@ -135,17 +150,11 @@ class TrayApp:
             if self.floating_window:
                 try:
                     if error:
-                        # 出错时停止动画并显示错误
-                        self.floating_window.window.after(0, lambda: (
-                            self.floating_window._toggle_recording() if self.floating_window.is_recording else None,
-                            self.floating_window.update_status(f"❌ {error}") if hasattr(self.floating_window, 'update_status') else None
-                        ))
+                        if hasattr(self.floating_window, 'set_text'):
+                            self.floating_window.set_text(f"❌ {error}")
                     else:
-                        # 成功时停止动画（status模式不隐藏图标）
-                        self.floating_window.window.after(0, lambda: (
-                            self.floating_window._toggle_recording() if self.floating_window.is_recording else None,
-                            self.floating_window.set_text(text) if hasattr(self.floating_window, 'set_text') else None
-                        ))
+                        if hasattr(self.floating_window, 'set_text'):
+                            self.floating_window.set_text(text)
                 except Exception as e:
                     logger.warning(f"更新悬浮窗状态失败: {e}")
             self.keyboard_manager.type_text(text, error)
@@ -153,7 +162,7 @@ class TrayApp:
             logger.error("没有录音数据，状态将重置")
             if self.floating_window:
                 try:
-                    self.floating_window.window.after(0, lambda: self.floating_window.update_status("❌ 录音失败"))
+                    self.floating_window.set_text("❌ 录音失败")
                 except Exception:
                     pass
             self.keyboard_manager.reset_state()
@@ -164,42 +173,57 @@ class TrayApp:
         if self.floating_window:
             try:
                 # 托盘触发翻译录音（status模式图标是常驻的）
-                self.floating_window.window.after(0, lambda: (
-                    self.floating_window.reset_wave(),
-                    self.floating_window._toggle_recording() if not self.floating_window.is_recording else None
-                ))
+                self.floating_window.reset_wave()
+                if not self.floating_window.is_recording:
+                    self.floating_window._toggle_recording()
             except Exception:
                 pass
 
     def _set_level_safe(self, lv: float):
         if self.floating_window and getattr(self.floating_window, 'window', None):
             try:
-                self.floating_window.window.after(0, lambda: self.floating_window.set_level(lv))
+                self.floating_window.set_level(lv)
             except Exception:
                 pass
 
     def _push_wave_samples_safe(self, samples):
         if self.floating_window and getattr(self.floating_window, 'window', None):
             try:
-                self.floating_window.window.after(0, lambda s=samples: self.floating_window.push_wave_samples(s))
+                self.floating_window.push_wave_samples(samples)
             except Exception:
                 pass
 
     def stop_translation_recording(self):
-        audio = self.audio_recorder.stop_recording()
+        # 立即停止录音并更新UI状态
         self.is_recording_translation = False
+        if self.floating_window and self.floating_window.is_recording:
+            try:
+                self.floating_window._toggle_recording()
+            except Exception as e:
+                logger.warning(f"停止录音动画失败: {e}")
+        
+        # 获取录音数据
+        audio = self.audio_recorder.stop_recording()
+        
+        # 确保文本输入框获得焦点
+        if self.floating_window and hasattr(self.floating_window, 'text_widget'):
+            try:
+                self.floating_window.text_widget.focus_set()
+            except Exception:
+                pass
+
         if audio == "TOO_SHORT":
             logger.warning("录音时长太短，状态将重置")
             if self.floating_window:
                 try:
-                    self.floating_window.window.after(0, lambda: self.floating_window.update_status("⚠️ 录音时长过短"))
+                    self.floating_window.set_text("⚠️ 录音时长过短")
                 except Exception:
                     pass
             self.keyboard_manager.reset_state()
         elif audio:
             if self.floating_window:
                 try:
-                    self.floating_window.window.after(0, lambda: self.floating_window.update_status("🔄 正在翻译..."))
+                    self.floating_window.set_text("🔄 正在翻译...")
                 except Exception:
                     pass
             result = self.audio_processor.process_audio(
@@ -211,25 +235,19 @@ class TrayApp:
             if self.floating_window:
                 try:
                     if error:
-                        # 翻译出错时也要停止动画
-                        self.floating_window.window.after(0, lambda: (
-                            self.floating_window._toggle_recording() if self.floating_window.is_recording else None,
-                            self.floating_window.update_status(f"❌ {error}") if hasattr(self.floating_window, 'update_status') else None
-                        ))
+                        if hasattr(self.floating_window, 'update_status'):
+                            self.floating_window.update_status(f"❌ {error}")
                     else:
-                        # 翻译成功时停止动画（status模式不隐藏图标）
-                        self.floating_window.window.after(0, lambda: (
-                            self.floating_window._toggle_recording() if self.floating_window.is_recording else None,
-                            self.floating_window.set_text(text) if hasattr(self.floating_window, 'set_text') else None
-                        ))
-                except Exception:
-                    pass
+                        if hasattr(self.floating_window, 'set_text'):
+                            self.floating_window.set_text(text)
+                except Exception as e:
+                    logger.warning(f"更新悬浮窗状态失败: {e}")
             self.keyboard_manager.type_text(text, error)
         else:
             logger.error("没有录音数据，状态将重置")
             if self.floating_window:
                 try:
-                    self.floating_window.window.after(0, lambda: self.floating_window.update_status("❌ 录音失败"))
+                    self.floating_window.update_status("❌ 录音失败")
                 except Exception:
                     pass
             self.keyboard_manager.reset_state()
@@ -328,13 +346,12 @@ class TrayApp:
     def run(self):
         # 仅在本地模式下启动本地服务
         try:
-            service_platform = os.getenv("SERVICE_PLATFORM", "google").lower()
+            service_platform = os.getenv("SERVICE_PLATFORM", "local").lower()
             if service_platform == "local":
                 threading.Thread(target=run_server, daemon=True).start()
                 logger.info("本地服务启动请求已发出（local 模式）")
         except Exception:
             pass
-
         # 后台启动键盘监听
         threading.Thread(target=self.keyboard_manager.start_listening, daemon=True).start()
 
