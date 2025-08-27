@@ -3,11 +3,11 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "whisper-input"
+name = "wisinput"
 version = "1.0.1"
 description = "Windows tray application for voice input with cloud-based (Google Gemini) and local model transcription services"
 readme = "README.md"
-authors = [{name = "ErlichLiu", email = "erlichliu@example.com"}]
+authors = [{name = "wisinput", email = "erlichliu@example.com"}]
 license = {text = "MIT"}
 requires-python = ">=3.8"
 classifiers = [
@@ -88,9 +88,9 @@ whisper-input = "src.windows_app:main"
 whisper-input-gui = "src.windows_app:main"
 
 [project.urls]
-Homepage = "https://github.com/ErlichLiu/Whisper-Input"
-Repository = "https://github.com/ErlichLiu/Whisper-Input"
-Issues = "https://github.com/ErlichLiu/Whisper-Input/issues"
+Homepage = "https://github.com/Nurdich/wisinput"
+Repository = "https://github.com/Nurdich/wisinput"
+Issues = "https://github.com/Nurdich/wisinput/issues"
 
 [tool.setuptools]
 packages = ["src", "src.audio", "src.keyboard", "src.llm", "src.transcription", "src.utils"]
