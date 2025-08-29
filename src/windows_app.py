@@ -29,8 +29,9 @@ def run_server():
     
     
 # 创建应用实例供 uvicorn 使用
-
-    app = uvicorn.run("speaches.main:create_app", host="127.0.0.1", port=8000,factory=True,reload=True)
+    from speaches.main import create_app
+    app=create_app()
+    app = uvicorn.run(app, host="127.0.0.1", port=8000,factory=True,reload=True)
 
 
     
@@ -442,7 +443,7 @@ class TrayApp:
 
 def main():
     try:
-        threading.Thread(target=run_server, daemon=True).start()
+        
         TrayApp().run()
     except Exception as e:
         logger.error(f"程序启动失败: {e}")
