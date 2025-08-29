@@ -29,7 +29,7 @@ def run_server():
     
     import subprocess
     subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "speaches.main:create_app", "--host", "127.0.0.1", "--port", "8000", "--factory"],
+        [sys.executable, "-m", "uvicorn", "speaches.main:create_app", "--host", "127.0.0.1", "--port", "8000"],
         # creationflags=subprocess.CREATE_NEW_CONSOLE,
     )
     
