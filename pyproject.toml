@@ -73,9 +73,8 @@ speaches-cli = { workspace = true }
 homepage = "https://github.com/nurdich/wisinput"
 repository = "https://github.com/nurdich/wisinput"
 documentation = "https://wisinput.readthedocs.io/"
-
 [project.scripts]
-wisinput = "wisinput.simple_launcher:main"
+wisinput = "src.windows_app:main"
 
 [project.gui-scripts]
-wisinput-gui = "wisinput.simple_launcher:main"
+wisinput-gui = "src.windows_app:main"
