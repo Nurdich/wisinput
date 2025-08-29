@@ -2977,8 +2977,6 @@ dependencies = [
     { name = "pystray" },
     { name = "sounddevice" },
     { name = "soundfile" },
-    { name = "speaches" },
-    { name = "speaches-cli" },
     { name = "uvicorn" },
 ]
 
@@ -2997,8 +2995,6 @@ requires-dist = [
     { name = "pystray", specifier = ">=0.19.5" },
     { name = "sounddevice", specifier = ">=0.5.2" },
     { name = "soundfile", specifier = ">=0.13.1" },
-    { name = "speaches", editable = "speaches" },
-    { name = "speaches-cli", editable = "packages/speaches-cli" },
     { name = "uvicorn", specifier = ">=0.35.0" },
 ]
 

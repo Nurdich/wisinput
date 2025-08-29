@@ -41,3 +41,4 @@ wisinput.egg-info/PKG-INFO
 wisinput.egg-info/requires.txt
 wisinput.egg-info/SOURCES.txt
 wisinput.egg-info/top_level.txt
+test_uvx.py
