@@ -4,7 +4,7 @@ import threading
 import time
 import math
 from pynput import mouse
-from ..utils.logger import logger
+from src.utils.logger import logger
 import os
 
 

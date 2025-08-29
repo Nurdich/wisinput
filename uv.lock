@@ -11,7 +11,6 @@ resolution-markers = [
 [manifest]
 members = [
     "speaches",
-    "speaches-cli",
     "wisinput",
 ]
 
@@ -2862,21 +2861,6 @@ requires-dist = [
 provides-extras = ["dev", "ui", "opentelemetry"]
 
 [[package]]
-name = "speaches-cli"
-version = "0.1.0"
-source = { editable = "packages/speaches-cli" }
-dependencies = [
-    { name = "httpx" },
-    { name = "typer" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "httpx", specifier = ">=0.27.2" },
-    { name = "typer", specifier = ">=0.12.5" },
-]
-
-[[package]]
 name = "srt"
 version = "3.5.3"
 source = { registry = "https://pypi.org/simple" }
@@ -3196,7 +3180,6 @@ dependencies = [
     { name = "requests" },
     { name = "sounddevice" },
     { name = "soundfile" },
-    { name = "speaches-cli" },
     { name = "torch" },
     { name = "transformers" },
     { name = "uvicorn" },
@@ -3223,7 +3206,6 @@ requires-dist = [
     { name = "requests", specifier = ">=2.31.0" },
     { name = "sounddevice", specifier = ">=0.5.2" },
     { name = "soundfile", specifier = ">=0.13.1" },
-    { name = "speaches-cli", editable = "packages/speaches-cli" },
     { name = "torch", specifier = ">=2.0.0" },
     { name = "transformers", specifier = ">=4.30.0" },
     { name = "uvicorn", specifier = ">=0.35.0" },

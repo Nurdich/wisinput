@@ -10,16 +10,16 @@ Windows 托盘应用（无控制台）
 import os
 import sys
 import threading
+import uvicorn
 
 import pystray
 from PIL import Image, ImageDraw
 
-from .utils.logger import logger
-from .transcription.google_ai import GoogleAiProcessor
-from .transcription.local_model import LocalModelProcessor
-from .keyboard.listener import KeyboardManager
-from .audio.recorder import AudioRecorder
-
+from src.utils.logger import logger
+from src.transcription.google_ai import GoogleAiProcessor
+from src.transcription.local_model import LocalModelProcessor
+from src.keyboard.listener import KeyboardManager
+from src.audio.recorder import AudioRecorder
 
 def run_server():
     """在本机启动本地模型服务器（仅用于 SERVICE_PLATFORM=local）。
@@ -35,7 +35,6 @@ def run_server():
     
     logger.info("本地服务已禁用，使用远程服务")
 
-   
 
 
 class TrayApp:
@@ -67,7 +66,8 @@ class TrayApp:
         self.enable_floating_window = os.getenv("ENABLE_FLOATING_WINDOW", "true").lower() == "true"
         if self.enable_floating_window:
             try:
-                from .keyboard.floating_window import FloatingWindow
+                from src.keyboard.floating_window import FloatingWindow     
+
                 self.floating_window = FloatingWindow(
                     on_record_start=self.start_transcription_recording,
                     on_record_stop=self.stop_transcription_recording,
@@ -418,14 +418,7 @@ class TrayApp:
         self.icon.run()
 
     def run(self):
-        # 仅在本地模式下启动本地服务
-        try:
-            service_platform = os.getenv("SERVICE_PLATFORM", "local").lower()
-            if service_platform == "local":
-                threading.Thread(target=run_server, daemon=True).start()
-                logger.info("本地服务启动请求已发出（local 模式）")
-        except Exception:
-            pass
+  
         # 后台启动键盘监听
         threading.Thread(target=self.keyboard_manager.start_listening, daemon=True).start()
 
@@ -440,6 +433,8 @@ class TrayApp:
 
 def main():
     try:
+        threading.Thread(target=run_server, daemon=True).start()
+
         TrayApp().run()
     except Exception as e:
         logger.error(f"程序启动失败: {e}")

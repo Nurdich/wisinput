@@ -43,7 +43,6 @@ dependencies = [
     "huggingface-hub>=0.16.0",
     # 其他AI相关
     "ctranslate2>=3.20.0",
-    "speaches-cli",
 ]
 
 [build-system]
@@ -57,18 +56,17 @@ packages = ["."]
 include = [
     "src",
     "assets",
+    "speaches",
     "README.md",
 ]
 
 [tool.uv.workspace]
 members = [
     "speaches",
-    "packages/speaches-cli",
 ]
 
 [tool.uv.sources]
 speaches = { workspace = true }
-speaches-cli = { workspace = true }
 
 [project.urls]
 homepage = "https://github.com/nurdich/wisinput"
@@ -77,5 +75,3 @@ documentation = "https://wisinput.readthedocs.io/"
 [project.scripts]
 wisinput = "src.windows_app:main"
 
-[project.gui-scripts]
-wisinput-gui = "src.windows_app:main"

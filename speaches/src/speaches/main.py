@@ -55,7 +55,11 @@ TAGS_METADATA = [
 
 
 def create_app() -> FastAPI:
-    config = get_config()  # HACK
+    
+    config = get_config()
+    setup_logger("INFO")
+    logger = logging.getLogger(__name__)
+    logger.debug(f"Config: {config}")
 
     dependencies = []
     if config.api_key is not None:
@@ -90,7 +94,6 @@ def create_app() -> FastAPI:
     app.include_router(speech_router)
     app.include_router(vad_router)
 
-    # HACK: move this elsewhere
     app.get("/v1/realtime", include_in_schema=False)(lambda: RedirectResponse(url="/v1/realtime/"))
     app.mount("/v1/realtime", StaticFiles(directory="realtime-console/dist", html=True))
 
@@ -110,7 +113,6 @@ def create_app() -> FastAPI:
 
         app = gr.mount_gradio_app(app, create_gradio_demo(config), path="")
 
-        logger = logging.getLogger("speaches.main")
         if config.host and config.port:
             display_host = "localhost" if config.host in ("0.0.0.0", "127.0.0.1") else config.host
             url = f"http://{display_host}:{config.port}/"
@@ -118,4 +120,10 @@ def create_app() -> FastAPI:
         # If host or port is missing, do not print a possibly incorrect URL.
 
     return app
+
+
+
+# 延迟创建应用实例
+def get_app():
+    return create_app()
 
