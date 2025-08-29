@@ -43,6 +43,7 @@ dependencies = [
     "huggingface-hub>=0.16.0",
     # 其他AI相关
     "ctranslate2>=3.20.0",
+    "speaches-cli",
 ]
 
 [build-system]
