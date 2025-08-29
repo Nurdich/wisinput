@@ -27,11 +27,12 @@ def run_server():
     在 Windows 下隐藏控制台窗口，避免打扰用户。
     """
     
-    import subprocess
-    subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "speaches.main:create_app", "--host", "127.0.0.1", "--port", "8000"],
-        # creationflags=subprocess.CREATE_NEW_CONSOLE,
-    )
+    
+# 创建应用实例供 uvicorn 使用
+
+    app = uvicorn.run("speaches.main:create_app", host="127.0.0.1", port=8000,factory=True,reload=True)
+
+
     
     logger.info("本地服务已禁用，使用远程服务")
 
@@ -418,7 +419,15 @@ class TrayApp:
         self.icon.run()
 
     def run(self):
-  
+        # 仅在本地模式下启动本地服务
+        try:
+            service_platform = os.getenv("SERVICE_PLATFORM", "local").lower()
+            service_platform="local"
+            if service_platform == "local":
+
+                logger.info("本地服务启动请求已发出（local 模式）")
+        except Exception:
+            pass
         # 后台启动键盘监听
         threading.Thread(target=self.keyboard_manager.start_listening, daemon=True).start()
 
@@ -434,7 +443,6 @@ class TrayApp:
 def main():
     try:
         threading.Thread(target=run_server, daemon=True).start()
-
         TrayApp().run()
     except Exception as e:
         logger.error(f"程序启动失败: {e}")
