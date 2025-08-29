@@ -1,15 +1,41 @@
 from pynput.keyboard import Controller, Key, Listener
 import pyperclip
-from ..utils.logger import logger
 import time
-from .inputState import InputState
 import os
 import sys
 import ctypes
 from ctypes import wintypes
-from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
-from ctypes import cast, POINTER
-from comtypes import CLSCTX_ALL
+try:
+    from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
+    from ctypes import cast, POINTER
+    from comtypes import CLSCTX_ALL
+    PYCAW_AVAILABLE = True
+except ImportError:
+    PYCAW_AVAILABLE = False
+
+# Placeholder modules
+class logger:
+    @staticmethod
+    def info(msg): print(f"INFO: {msg}")
+    @staticmethod
+    def warning(msg): print(f"WARNING: {msg}")
+    @staticmethod
+    def error(msg): print(f"ERROR: {msg}")
+    @staticmethod
+    def debug(msg): print(f"DEBUG: {msg}")
+
+class InputState:
+    IDLE = "idle"
+    RECORDING = "recording"
+    RECORDING_TRANSLATE = "recording_translate"
+    PROCESSING = "processing"
+    TRANSLATING = "translating"
+    ERROR = "error"
+    WARNING = "warning"
+    
+    @classmethod
+    def can_start_recording(cls, state):
+        return state in (cls.IDLE, cls.ERROR, cls.WARNING)
 
 
 class KeyboardManager:
@@ -26,7 +52,7 @@ class KeyboardManager:
         self.input_mode = os.getenv("INPUT_MODE", "type").lower()
         # 悬浮窗引用
         self.floating_window = floating_window
-        # V2 版本强制使用“按住模式”
+        # V2 版本强制使用"按住模式"
         self.toggle_mode = False
         self.is_recording = False
         # 防抖：按住同一按键仅算一次
@@ -121,68 +147,66 @@ class KeyboardManager:
             message = self._state_messages[new_state]
             
             # 根据状态转换类型显示不同消息
-            match new_state:
-                case InputState.RECORDING :
-                    # 录音状态
-                    self.temp_text_length = 0
-                    self.type_temp_text(message)
-                    self.on_record_start()
-                    
+            if new_state == InputState.RECORDING:
+                # 录音状态
+                self.temp_text_length = 0
+                self.type_temp_text(message)
+                self.on_record_start()
                 
-                case InputState.RECORDING_TRANSLATE:
-                    # 翻译,录音状态
-                    self.temp_text_length = 0
-                    self.type_temp_text(message)
-                    self.on_translate_start()
+            elif new_state == InputState.RECORDING_TRANSLATE:
+                # 翻译,录音状态
+                self.temp_text_length = 0
+                self.type_temp_text(message)
+                self.on_translate_start()
 
-                case InputState.PROCESSING:
-                    self._delete_previous_text()
-                    self.type_temp_text(message)
-                    self.processing_text = message
-                    self.on_record_stop()
-                    # 进入处理后，暂时隐藏悬浮窗，避免遮挡（status模式除外）
-                    if self.floating_window and getattr(self.floating_window, 'mode', 'full') != 'status':
-                        try:
-                            self.floating_window.window.after(0, self.floating_window.hide)
-                        except Exception:
-                            pass
+            elif new_state == InputState.PROCESSING:
+                self._delete_previous_text()
+                self.type_temp_text(message)
+                self.processing_text = message
+                self.on_record_stop()
+                # 进入处理后，暂时隐藏悬浮窗，避免遮挡（status模式除外）
+                if self.floating_window and getattr(self.floating_window, 'mode', 'full') != 'status':
+                    try:
+                        self.floating_window.window.after(0, self.floating_window.hide)
+                    except Exception:
+                        pass
 
-                case InputState.TRANSLATING:
-                    # 翻译状态
-                    self._delete_previous_text()                 
-                    self.type_temp_text(message)
-                    self.processing_text = message
-                    self.on_translate_stop()
-                    # 翻译处理时隐藏悬浮窗（status模式除外）
-                    if self.floating_window and getattr(self.floating_window, 'mode', 'full') != 'status':
-                        try:
-                            self.floating_window.window.after(0, self.floating_window.hide)
-                        except Exception:
-                            pass
-                
-                case InputState.WARNING:
-                    # 警告状态
-                    message = message(self.warning_message)
-                    self._delete_previous_text()
-                    self.type_temp_text(message)
-                    self.warning_message = None
-                    self._schedule_message_clear()     
-                
-                case InputState.ERROR:
-                    # 错误状态
-                    message = message(self.error_message)
-                    self._delete_previous_text()
-                    self.type_temp_text(message)
-                    self.error_message = None
-                    self._schedule_message_clear()  
+            elif new_state == InputState.TRANSLATING:
+                # 翻译状态
+                self._delete_previous_text()                 
+                self.type_temp_text(message)
+                self.processing_text = message
+                self.on_translate_stop()
+                # 翻译处理时隐藏悬浮窗（status模式除外）
+                if self.floating_window and getattr(self.floating_window, 'mode', 'full') != 'status':
+                    try:
+                        self.floating_window.window.after(0, self.floating_window.hide)
+                    except Exception:
+                        pass
             
-                case InputState.IDLE:
-                    # 空闲状态，清除所有临时文本
-                    self.processing_text = None
-                
-                case _:
-                    # 其他状态
-                    self.type_temp_text(message)
+            elif new_state == InputState.WARNING:
+                # 警告状态
+                message = message(self.warning_message)
+                self._delete_previous_text()
+                self.type_temp_text(message)
+                self.warning_message = None
+                self._schedule_message_clear()     
+            
+            elif new_state == InputState.ERROR:
+                # 错误状态
+                message = message(self.error_message)
+                self._delete_previous_text()
+                self.type_temp_text(message)
+                self.error_message = None
+                self._schedule_message_clear()  
+        
+            elif new_state == InputState.IDLE:
+                # 空闲状态，清除所有临时文本
+                self.processing_text = None
+            
+            else:
+                # 其他状态
+                self.type_temp_text(message)
     
     def _schedule_message_clear(self):
         """计划清除消息"""
@@ -553,7 +577,7 @@ class KeyboardManager:
         self.pressed_keys.add(key)
         
         # 如果已在录音，或状态不允许开始，则忽略
-        if self.is_recording or not self.state.can_start_recording:
+        if self.is_recording or not InputState.can_start_recording(self.state):
             return
 
         is_translation_hotkey = self.translations_button.issubset(self.pressed_keys)
@@ -595,6 +619,9 @@ class KeyboardManager:
                 self.state = InputState.PROCESSING
     
     def mute_system_volume(self):
+        if not PYCAW_AVAILABLE:
+            logger.warning("pycaw 不可用，跳过音量控制")
+            return
         try:
             sessions = AudioUtilities.GetAllSessions()
             self.original_audio_states.clear()
@@ -625,6 +652,8 @@ class KeyboardManager:
             logger.error(f"静音失败: {e}")
 
     def restore_system_volume(self):
+        if not PYCAW_AVAILABLE:
+            return
         try:
             if not self.original_audio_states:
                 return
@@ -674,16 +703,10 @@ class KeyboardManager:
         self._restore_clipboard()
         
         # 重置状态标志
-        self.option_pressed = False
-        self.shift_pressed = False
-        self.option_press_time = None
-        self.is_checking_duration = False
-        self.has_triggered = False
+        self.is_recording = False
         self.processing_text = None
         self.error_message = None
         self.warning_message = None
         
         # 设置为空闲状态
         self.state = InputState.IDLE
-
- 

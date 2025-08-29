@@ -44,7 +44,7 @@ def timeout_decorator(seconds):
 class LocalModelProcessor:
     # 类级别的配置参数
     DEFAULT_TIMEOUT = 20  # API 超时时间（秒）
-    DEFAULT_BASE_URL = "http://192.168.1.142:8000"
+    DEFAULT_BASE_URL = "http://127.0.0.1:8000"
     DEFAULT_MODEL = "k1nto/Belle-whisper-large-v3-zh-punct-ct2"
 
     def __init__(self):
@@ -52,7 +52,7 @@ class LocalModelProcessor:
         self.base_url = os.getenv("LOCAL_MODEL_BASE_URL", self.DEFAULT_BASE_URL)
         self.timeout_seconds = int(os.getenv("LOCAL_MODEL_TIMEOUT", str(self.DEFAULT_TIMEOUT)))
         self.model = os.getenv("LOCAL_MODEL_NAME", self.DEFAULT_MODEL)
-
+        self.base_url = "http://127.0.0.1:8000"
         # 功能配置
         self.convert_to_simplified = os.getenv("CONVERT_TO_SIMPLIFIED", "false").lower() == "true"
 

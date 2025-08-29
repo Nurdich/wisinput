@@ -2,7 +2,6 @@ import tkinter as tk
 from tkinter import ttk
 import threading
 import time
-import math
 from pynput import mouse
 from ..utils.logger import logger
 import os
@@ -27,11 +26,11 @@ class FloatingWindow:
         
         # 模式：status 仅状态显示；full 完整功能
         self.mode = os.getenv("FLOATING_WINDOW_MODE", "status").lower()
-        # 波形增益，放大可视振幅（增加到更高的值）
+        # 波形增益，放大可视振幅（例如 5 表示 5 倍）
         try:
-            self.wave_gain = float(os.getenv("WAVE_GAIN", "15"))  # 从5增加到15
+            self.wave_gain = float(os.getenv("WAVE_GAIN", "5"))
         except Exception:
-            self.wave_gain = 15.0
+            self.wave_gain = 5.0
         
         # 使用项目内置的SVG图标
         self.icon_assets = {
@@ -57,8 +56,6 @@ class FloatingWindow:
         # 悬浮窗状态
         self.window = None
         self.is_recording = False
-        self.is_processing = False  # 录音完成后到转录开始之间的状态
-        self.is_transcribing = False  # 正在转录状态
         self.is_translating = False
         self.is_visible = False
         self.follow_mouse = True
@@ -94,10 +91,6 @@ class FloatingWindow:
                 logger.info(info)
             else:
                 logger.info("当前窗口没有焦点控件")
-                # 如果没有焦点，尝试设置焦点到文本框
-                if hasattr(self, 'text_widget') and self.text_widget:
-                    self.text_widget.focus_set()
-                    logger.info("已重新设置焦点到文本框")
         except Exception as e:
             logger.error(f"获取窗口状态失败: {e}")
 
@@ -425,7 +418,7 @@ class FloatingWindow:
     def _on_icon_hover(self, event):
         """鼠标悬停在图标上"""
         self._is_hovering = True
-        if not self.is_recording and not self.is_processing:  # 只在非录音和非处理状态显示悬浮提示
+        if not self.is_recording:  # 只在非录音状态显示悬浮提示
             self._show_hover_text()
         
     def _on_icon_leave(self, event):
@@ -434,14 +427,12 @@ class FloatingWindow:
         if self._hover_text_job:
             self.window.after_cancel(self._hover_text_job)
             self._hover_text_job = None
-        if not self.is_recording and not self.is_processing:
+        if not self.is_recording:
             self._draw_idle_icon()
-        elif self.is_processing:
-            self._draw_processing_icon()
     
     def _show_hover_text(self):
         """显示悬浮提示文本 - 简洁版本"""
-        if not self._is_hovering or self.is_recording or self.is_processing:
+        if not self._is_hovering or self.is_recording:
             return
         
         c = getattr(self, 'icon_canvas', None)
@@ -536,7 +527,7 @@ class FloatingWindow:
                          fill='#e2e8f0', font=('Arial', 8), anchor='center')
         
         # 定时恢复到静止状态
-        self._hover_text_job = self.window.after(2000, lambda: self._draw_idle_icon() if not self.is_recording and not self.is_processing else None)
+        self._hover_text_job = self.window.after(2000, lambda: self._draw_idle_icon() if not self.is_recording else None)
     def _start_visibility_check(self):
         """定期检查窗口可见性，防止被系统隐藏"""
         if self.mode != "status":
@@ -556,8 +547,6 @@ class FloatingWindow:
                         if hasattr(self, 'icon_canvas'):
                             if self.is_recording:
                                 self._draw_recording_icon()
-                            elif self.is_processing:
-                                self._draw_processing_icon()
                             else:
                                 self._draw_idle_icon()
                     else:
@@ -595,10 +584,10 @@ class FloatingWindow:
             try:
                 from PIL import Image, ImageDraw, ImageTk, ImageFilter
                 
-                # 创建更高分辨率图像用于完美抗锯齿
-                scale = 12  # 从8增加到12倍分辨率，完全消除锯齿
+                # 创建超高分辨率图像用于抗锯齿
+                scale = 8  # 8倍分辨率，更强的抗锯齿
                 img_w, img_h = w * scale, h * scale
-                img = Image.new('RGBA', (img_w, img_h), (0, 0, 0, 0))  # 完全透明背景
+                img = Image.new('RGBA', (img_w, img_h), self.transparent_color)  # 使用特殊透明色作为背景
                 
                 # 创建绘制对象
                 draw = ImageDraw.Draw(img)
@@ -704,326 +693,6 @@ class FloatingWindow:
         # 不绘制静态波形，保持简洁的椭圆按钮
         pass
 
-    def _draw_processing_icon(self):
-        """绘制处理状态的胶囊图标 - 录音完成后到转录开始之间"""
-        c = getattr(self, 'icon_canvas', None)
-        if not c:
-            logger.warning("icon_canvas 不存在")
-            return
-        
-        try:
-            c.delete("all")
-            w, h = 120, 40
-            center_x, center_y = w // 2, h // 2
-            
-            # 使用PIL创建处理状态的图标
-            try:
-                from PIL import Image, ImageDraw, ImageTk
-                
-                scale = 6
-                img_w, img_h = w * scale, h * scale
-                img = Image.new('RGBA', (img_w, img_h), self.transparent_color)
-                draw = ImageDraw.Draw(img)
-                
-                # 处理状态胶囊形状 - 使用橙色表示处理中
-                bg_color = (249, 115, 22, 255)  # #f97316 橙色
-                margin = int(2 * scale)
-                radius = (img_h - 2*margin) // 2
-                
-                # 绘制胶囊形状
-                try:
-                    draw.rounded_rectangle(
-                        [margin, margin, img_w - margin, img_h - margin],
-                        radius=radius,
-                        fill=bg_color
-                    )
-                except AttributeError:
-                    # 兼容老版本PIL
-                    draw.rectangle([margin + radius, margin, img_w - margin - radius, img_h - margin], fill=bg_color)
-                    draw.ellipse([margin, margin, margin + 2*radius, img_h - margin], fill=bg_color)
-                    draw.ellipse([img_w - margin - 2*radius, margin, img_w - margin, img_h - margin], fill=bg_color)
-                
-                # 添加处理中的点点动画效果
-                dot_color = (255, 255, 255, 255)
-                dot_radius = int(3 * scale)
-                y_pos = img_h // 2
-                
-                # 三个点的位置
-                dot_positions = [
-                    img_w // 2 - int(15 * scale),
-                    img_w // 2,
-                    img_w // 2 + int(15 * scale)
-                ]
-                
-                # 根据动画相位显示不同的点
-                phase = getattr(self, '_anim_phase', 0) % 30
-                for i, x_pos in enumerate(dot_positions):
-                    # 每个点在不同时间闪烁
-                    if (phase // 10) == i:
-                        alpha = 255
-                    else:
-                        alpha = 100
-                    dot_color_with_alpha = (255, 255, 255, alpha)
-                    draw.ellipse(
-                        [x_pos - dot_radius, y_pos - dot_radius, 
-                         x_pos + dot_radius, y_pos + dot_radius],
-                        fill=dot_color_with_alpha
-                    )
-                
-                # 缩放回原尺寸并应用抗锯齿
-                img = img.resize((w, h), Image.Resampling.LANCZOS)
-                self._processing_icon_image = ImageTk.PhotoImage(img)
-                
-                c.create_image(center_x, center_y, image=self._processing_icon_image)
-                logger.debug("处理状态图标绘制完成")
-                return
-                
-            except ImportError:
-                # PIL 不可用时的回退方案
-                pass
-            except Exception as e:
-                logger.error(f"绘制处理状态图标失败: {e}")
-            
-            # 回退到Tkinter绘制
-            self._draw_processing_icon_tkinter()
-            
-        except Exception as e:
-            logger.error(f"绘制处理状态图标失败: {e}")
-    
-    def _draw_processing_icon_tkinter(self):
-        """使用Tkinter绘制处理状态图标（回退方法）"""
-        c = self.icon_canvas
-        w, h = 120, 40
-        center_x, center_y = w // 2, h // 2
-        
-        c.delete("all")
-        
-        # 橙色胶囊形状
-        bg_color = '#f97316'
-        margin = 2
-        radius = (h - 2*margin) // 2
-        
-        # 绘制胶囊形状
-        c.create_oval(margin, margin, margin + 2*radius, h - margin, 
-                     fill=bg_color, outline='')
-        c.create_oval(w - margin - 2*radius, margin, w - margin, h - margin, 
-                     fill=bg_color, outline='')
-        c.create_rectangle(margin + radius, margin, w - margin - radius, h - margin, 
-                          fill=bg_color, outline='')
-        
-        # 三个处理点
-        dot_positions = [center_x - 15, center_x, center_x + 15]
-        phase = getattr(self, '_anim_phase', 0) % 30
-        
-        for i, x_pos in enumerate(dot_positions):
-            if (phase // 10) == i:
-                dot_color = 'white'
-            else:
-                dot_color = '#cccccc'
-            c.create_oval(x_pos - 3, center_y - 3, x_pos + 3, center_y + 3,
-                         fill=dot_color, outline='')
-
-    def _draw_transcribing_icon(self):
-        """绘制转录状态的胶囊图标 - 蓝色动画表示正在转录"""
-        c = getattr(self, 'icon_canvas', None)
-        if not c:
-            logger.warning("icon_canvas 不存在")
-            return
-        
-        try:
-            c.delete("all")
-            w, h = 120, 40
-            center_x, center_y = w // 2, h // 2
-            
-            # 使用PIL创建转录状态的图标
-            try:
-                from PIL import Image, ImageDraw, ImageTk
-                
-                scale = 6
-                img_w, img_h = w * scale, h * scale
-                img = Image.new('RGBA', (img_w, img_h), self.transparent_color)
-                draw = ImageDraw.Draw(img)
-                
-                # 转录状态胶囊形状 - 使用蓝色表示转录中
-                bg_color = (59, 130, 246, 255)  # #3b82f6 蓝色
-                margin = int(2 * scale)
-                radius = (img_h - 2*margin) // 2
-                
-                # 绘制胶囊形状
-                try:
-                    draw.rounded_rectangle(
-                        [margin, margin, img_w - margin, img_h - margin],
-                        radius=radius,
-                        fill=bg_color
-                    )
-                except AttributeError:
-                    # 兼容老版本PIL
-                    draw.rectangle([margin + radius, margin, img_w - margin - radius, img_h - margin], fill=bg_color)
-                    draw.ellipse([margin, margin, margin + 2*radius, img_h - margin], fill=bg_color)
-                    draw.ellipse([img_w - margin - 2*radius, margin, img_w - margin, img_h - margin], fill=bg_color)
-                
-                # 添加转录中的波浪动画效果
-                wave_color = (255, 255, 255, 255)
-                wave_x = img_w // 2
-                wave_y = img_h // 2
-                
-                # 绘制转录符号 "🔄"
-                for i in range(3):
-                    angle = (self._anim_phase * 0.2 + i * 2.0) % (2 * math.pi)
-                    x = wave_x + int(12 * scale * math.cos(angle))
-                    y = wave_y + int(8 * scale * math.sin(angle))
-                    dot_radius = int(2 * scale)
-                    draw.ellipse(
-                        [x - dot_radius, y - dot_radius, 
-                         x + dot_radius, y + dot_radius],
-                        fill=wave_color
-                    )
-                
-                # 缩放回原尺寸并应用抗锯齿
-                img = img.resize((w, h), Image.Resampling.LANCZOS)
-                self._transcribing_icon_image = ImageTk.PhotoImage(img)
-                
-                c.create_image(center_x, center_y, image=self._transcribing_icon_image)
-                logger.debug("转录状态图标绘制完成")
-                return
-                
-            except ImportError:
-                # PIL 不可用时的回退方案
-                pass
-            except Exception as e:
-                logger.error(f"绘制转录状态图标失败: {e}")
-            
-            # 回退到Tkinter绘制
-            self._draw_transcribing_icon_tkinter()
-            
-        except Exception as e:
-            logger.error(f"绘制转录状态图标失败: {e}")
-    
-    def _draw_transcribing_icon_tkinter(self):
-        """使用Tkinter绘制转录状态图标（回退方法）"""
-        c = self.icon_canvas
-        w, h = 120, 40
-        center_x, center_y = w // 2, h // 2
-        
-        c.delete("all")
-        
-        # 蓝色胶囊形状
-        bg_color = '#3b82f6'
-        margin = 2
-        radius = (h - 2*margin) // 2
-        
-        # 绘制胶囊形状
-        c.create_oval(margin, margin, margin + 2*radius, h - margin, 
-                     fill=bg_color, outline='')
-        c.create_oval(w - margin - 2*radius, margin, w - margin, h - margin, 
-                     fill=bg_color, outline='')
-        c.create_rectangle(margin + radius, margin, w - margin - radius, h - margin, 
-                          fill=bg_color, outline='')
-        
-        # 转录动画 - 旋转的点
-        for i in range(3):
-            angle = (self._anim_phase * 0.2 + i * 2.0) % (2 * math.pi)
-            x = center_x + int(12 * math.cos(angle))
-            y = center_y + int(8 * math.sin(angle))
-            c.create_oval(x - 2, y - 2, x + 2, y + 2,
-                         fill='white', outline='')
-
-    def _start_processing_anim(self):
-        """开始处理状态动画"""
-        logger.info("开始处理状态动画")
-        if getattr(self, '_anim_job', None):
-            self.window.after_cancel(self._anim_job)
-        self._anim_job = None
-        self._anim_phase = 0
-        self._anim_step()
-
-    def start_processing(self):
-        """开始处理状态 - 录音完成后到转录开始之间"""
-        logger.info("悬浮窗：开始处理状态")
-        self.is_processing = True
-        
-        if getattr(self, 'icon_canvas', None):
-            logger.info("切换到处理状态，启动动画")
-            self._start_processing_anim()
-        else:
-            logger.warning("icon_canvas 不存在，无法启动处理动画")
-        
-        # 更新状态标签
-        if getattr(self, 'status_label', None):
-            self.status_label.configure(text="🔄 正在处理...")
-        
-        # 更新按钮状态（如果存在）
-        if getattr(self, 'record_button', None):
-            self.record_button.configure(
-                text="⏳ 处理中",
-                bg='#f97316'  # 橙色
-            )
-
-    def stop_processing(self):
-        """停止处理状态 - 转录开始时调用"""
-        logger.info("悬浮窗：停止处理状态")
-        self.is_processing = False
-        
-        # 停止处理动画
-        if getattr(self, '_anim_job', None):
-            self.window.after_cancel(self._anim_job)
-            self._anim_job = None
-        
-        # 根据当前状态绘制相应图标
-        if getattr(self, 'icon_canvas', None):
-            if self.is_recording:
-                self._start_recording_anim()
-            elif self.is_transcribing:
-                self._start_transcribing_anim()
-            else:
-                self._draw_idle_icon()
-
-    def start_transcribing(self):
-        """开始转录状态 - 显示蓝色转录动画"""
-        logger.info("悬浮窗：开始转录状态")
-        self.is_transcribing = True
-        self.is_processing = False  # 确保处理状态关闭
-        
-        if getattr(self, 'icon_canvas', None):
-            logger.info("切换到转录状态，启动动画")
-            self._start_transcribing_anim()
-        else:
-            logger.warning("icon_canvas 不存在，无法启动转录动画")
-        
-        # 更新状态标签
-        if getattr(self, 'status_label', None):
-            self.status_label.configure(text="🔄 正在转录...")
-        
-        # 更新按钮状态（如果存在）
-        if getattr(self, 'record_button', None):
-            self.record_button.configure(
-                text="🔄 转录中",
-                bg='#3b82f6'  # 蓝色
-            )
-
-    def stop_transcribing(self):
-        """停止转录状态"""
-        logger.info("悬浮窗：停止转录状态")
-        self.is_transcribing = False
-        
-        # 停止转录动画
-        if getattr(self, '_anim_job', None):
-            self.window.after_cancel(self._anim_job)
-            self._anim_job = None
-        
-        # 绘制静止图标
-        if getattr(self, 'icon_canvas', None):
-            self._draw_idle_icon()
-
-    def _start_transcribing_anim(self):
-        """开始转录动画"""
-        logger.info("开始转录动画")
-        if getattr(self, '_anim_job', None):
-            self.window.after_cancel(self._anim_job)
-        self._anim_job = None
-        self._anim_phase = 0
-        self._anim_step()
-
     def _start_recording_anim(self):
         """开始录音动画"""
         logger.info("开始录音动画")
@@ -1034,30 +703,20 @@ class FloatingWindow:
         self._anim_step()
         
     def _anim_step(self):
-        """动画步进 - 支持录音和处理状态"""
-        if not getattr(self, 'icon_canvas', None):
+        """动画步进函数 - 优化流畅度"""
+        if not hasattr(self, 'icon_canvas') or not self.icon_canvas:
             logger.warning("动画步进：icon_canvas 不存在")
-            self._anim_job = None
             return
             
         # 更精细的动画相位控制
         self._anim_phase = (self._anim_phase + 1) % 60  # 增加到60帧循环，更平滑
-        logger.debug(f"动画步进：相位={self._anim_phase}, 录音状态={self.is_recording}, 处理状态={self.is_processing}")
+        logger.debug(f"动画步进：相位={self._anim_phase}, 录音状态={self.is_recording}")
         
         if self.is_recording:
             self._draw_recording_icon()
             # 提高帧率：从100ms改为33ms（约30FPS），更流畅
             self._anim_job = self.window.after(33, self._anim_step)
-        elif self.is_processing:
-            self._draw_processing_icon()
-            # 处理状态动画稍慢一些
-            self._anim_job = self.window.after(100, self._anim_step)
-        elif self.is_transcribing:
-            self._draw_transcribing_icon()
-            # 转录状态动画
-            self._anim_job = self.window.after(80, self._anim_step)
         else:
-            # 停止动画
             self._draw_idle_icon()
             self._anim_job = None
 
@@ -1098,21 +757,24 @@ class FloatingWindow:
                 # 脉动效果
                 pulse = 1.0 + 0.03 * abs((self._anim_phase % 12) - 6) / 6
                 
-                # 简化为高质量的单色胶囊，避免复杂渐变导致的性能问题
-                bg_color = (220, 38, 38, 255)  # #dc2626 红色
-                margin = int(1 * scale)  # 减少边距
+                # 绘制录音状态胶囊形状 - 使用更精确的方法
+                bg_color = (220, 38, 38, 255)  # #dc2626
+                margin = int(2 * scale)
                 radius = (img_h - 2*margin) // 2
                 
-                # 绘制胶囊形状
+                # 方法1：使用PIL的圆角矩形
                 try:
                     draw.rounded_rectangle(
                         [margin, margin, img_w - margin, img_h - margin],
                         radius=radius, fill=bg_color
                     )
                 except AttributeError:
-                    # 兼容老版本PIL
+                    # 方法2：手动绘制完美胶囊（兼容老版本PIL）
+                    # 中间矩形
                     draw.rectangle([margin + radius, margin, img_w - margin - radius, img_h - margin], fill=bg_color)
+                    # 左半圆
                     draw.ellipse([margin, margin, margin + 2*radius, img_h - margin], fill=bg_color)
+                    # 右半圆
                     draw.ellipse([img_w - margin - 2*radius, margin, img_w - margin, img_h - margin], fill=bg_color)
                 
                 # 绘制发光效果
@@ -1140,117 +802,66 @@ class FloatingWindow:
                 draw.rectangle([mic_x - 1*scale, mic_y + 2*scale,
                                mic_x + 1*scale, mic_y + 8*scale], fill=mic_color)
                 
-                # 绘制动态波形 - 填满整个按钮区域
-                wave_start_x = int(25 * scale)  # 从麦克风图标右侧开始
-                wave_end_x = int((w - 15) * scale)  # 到按钮右侧结束
-                wave_width = wave_end_x - wave_start_x
+                # 绘制动态波形 - 使用真实音频电平数据
+                import math
+                wave_x = (center_x + 8) * scale
                 wave_color = (255, 255, 255, 255)  # 白色
                 
                 # 获取当前音频电平 - 增加幅度
                 current_level = getattr(self, '_level', 0.0) * self.wave_gain
                 current_level = max(0.0, min(1.0, current_level))  # 限制在0-1之间
                 
-                # 计算波形条数量，填满可用空间
-                bar_width = int(1.5 * scale)
-                bar_spacing = int(0.5 * scale)
-                num_bars = max(12, wave_width // (bar_width + bar_spacing))  # 至少12个波形条
+                # 基础波形高度 - 增加基础高度
+                base_heights = [4, 8, 6, 12, 8, 10, 4]  # 基础高度翻倍
                 
-                # 动态生成波形高度，确保填满空间
-                base_heights = []
-                for i in range(num_bars):
-                    # 创建更自然的波形分布
-                    center_pos = num_bars // 2
-                    distance_from_center = abs(i - center_pos) / center_pos
-                    base_height = int(8 + 16 * (1.0 - distance_from_center * 0.5))  # 中间高，两边低
-                    base_heights.append(base_height)
-                
-                # 使用真实波形数据或模拟真实音频效果
-                wave_samples = getattr(self, '_wave_samples', [])
-                
-                if len(wave_samples) > 0 and current_level > 0.01:
-                    # 有真实波形数据，使用实际音频样本
-                    num_bars = len(base_heights)
-                    samples_per_bar = max(1, len(wave_samples) // num_bars)
-                    
+                # 如果有音频信号，使用实时数据；否则使用低强度动画
+                if current_level > 0.01:  # 有声音输入
                     for i, base_height in enumerate(base_heights):
-                        # 获取对应的音频样本段
-                        start_idx = i * samples_per_bar
-                        end_idx = min(start_idx + samples_per_bar, len(wave_samples))
-                        bar_samples = wave_samples[start_idx:end_idx]
+                        # 使用真实音频电平 + 轻微的频率差异
+                        freq_variation = 1.0 + (i - 3) * 0.15  # 增加频率差异
+                        level_variation = current_level * freq_variation
+                        level_variation = max(0.2, min(1.0, level_variation))  # 最小高度20%
                         
-                        if bar_samples:
-                            # 计算RMS值作为波形高度
-                            rms = (sum(s * s for s in bar_samples) / len(bar_samples)) ** 0.5
-                            rms = max(0.0, min(1.0, rms * self.wave_gain * 3))  # 进一步增加增益
-                        else:
-                            rms = 0.0
+                        # 添加轻微的时间延迟模拟频谱
+                        time_offset = self._anim_phase * 0.1 + i * 0.2
+                        smooth_factor = 0.8 + 0.2 * math.sin(time_offset)
                         
-                        # 更动感的变化效果
-                        time_variation = 0.8 + 0.4 * math.sin(self._anim_phase * 0.15 + i * 0.4)
-                        frequency_boost = 1.0 + 0.3 * math.sin(self._anim_phase * 0.1 + i * 0.6)
-                        final_height = base_height * (0.2 + rms * 0.8) * time_variation * frequency_boost
+                        final_height = base_height * level_variation * smooth_factor
                         bar_height = int(final_height * scale)
                         
-                        x = wave_start_x + i * (bar_width + bar_spacing)
+                        x = wave_x + i * 3 * scale
                         y_top = mic_y - bar_height // 2
                         y_bottom = mic_y + bar_height // 2
                         
-                        # 绘制高质量渐变波形条
-                        for bar_y in range(y_top, y_bottom + 1):
-                            # 计算渐变因子
-                            gradient_pos = abs(bar_y - mic_y) / max(1, bar_height // 2)
-                            gradient_alpha = int(255 * (1.0 - gradient_pos * 0.2))
-                            
-                            # 绘制渐变线条
-                            for bar_x in range(x, x + bar_width):
-                                draw.point((bar_x, bar_y), fill=(255, 255, 255, gradient_alpha))
-                            
-                elif current_level > 0.01:  # 有声音但没有波形数据，使用高级电平模拟
-                    for i, base_height in enumerate(base_heights):
-                        # 更复杂的频谱模拟
-                        freq_center = len(base_heights) // 2
-                        freq_distance = abs(i - freq_center) / freq_center
-                        freq_variation = 1.0 + (0.5 - freq_distance) * 0.6 * math.sin(self._anim_phase * 0.2)
-                        level_variation = current_level * abs(freq_variation)
-                        level_variation = max(0.1, min(1.0, level_variation))
-                        
-                        # 更动感的时间变化
-                        time_offset = self._anim_phase * 0.12 + i * 0.3
-                        smooth_factor = 0.6 + 0.4 * math.sin(time_offset)
-                        beat_factor = 1.0 + 0.2 * math.sin(self._anim_phase * 0.05)  # 慢节拍
-                        
-                        final_height = base_height * level_variation * smooth_factor * beat_factor
-                        bar_height = int(final_height * scale)
-                        
-                        x = wave_start_x + i * (bar_width + bar_spacing)
-                        y_top = mic_y - bar_height // 2
-                        y_bottom = mic_y + bar_height // 2
-                        
-                        # 高级渐变波形条
-                        for bar_y in range(y_top, y_bottom + 1):
-                            gradient_pos = abs(bar_y - mic_y) / max(1, bar_height // 2)
-                            gradient_alpha = int(255 * (1.0 - gradient_pos * 0.2))
-                            for bar_x in range(x, x + bar_width):
-                                draw.point((bar_x, bar_y), fill=(255, 255, 255, gradient_alpha))
+                        # 绘制圆角矩形波形条
+                        try:
+                            corner_radius = int(1 * scale)
+                            draw.rounded_rectangle([x, y_top, x + 2*scale, y_bottom], 
+                                                 radius=corner_radius, fill=wave_color)
+                        except AttributeError:
+                            draw.rectangle([x, y_top, x + 2*scale, y_bottom], fill=wave_color)
                 else:
-                    # 静音时显示优雅的待机动画
+                    # 静音时显示低强度的待机动画
                     for i, base_height in enumerate(base_heights):
-                        time_factor = (self._anim_phase * 0.03 + i * 0.5)
-                        idle_amplitude = 0.08 + 0.05 * math.sin(time_factor)  # 更微弱的待机动画
+                        time_factor = (self._anim_phase * 0.1 + i * 0.5)
+                        idle_amplitude = 0.3 + 0.2 * math.sin(time_factor)  # 增加待机波动
                         
                         final_height = base_height * idle_amplitude
-                        bar_height = max(1, int(final_height * scale))
+                        bar_height = int(final_height * scale)
                         
-                        x = wave_start_x + i * (bar_width + bar_spacing)
+                        x = wave_x + i * 3 * scale
                         y_top = mic_y - bar_height // 2
                         y_bottom = mic_y + bar_height // 2
                         
-                        # 半透明待机波形
-                        for bar_y in range(y_top, y_bottom + 1):
-                            for bar_x in range(x, x + bar_width):
-                                draw.point((bar_x, bar_y), fill=(255, 255, 255, 60))  # 更透明
+                        try:
+                            corner_radius = int(1 * scale)
+                            draw.rounded_rectangle([x, y_top, x + 2*scale, y_bottom], 
+                                                 radius=corner_radius, fill=wave_color)
+                        except AttributeError:
+                            draw.rectangle([x, y_top, x + 2*scale, y_bottom], fill=wave_color)
                 
                 # 录音指示点 - 更自然的脉动
+                import math
                 dot_time = self._anim_phase * 0.3  # 慢一点的脉动
                 dot_alpha = (math.sin(dot_time) + 1) / 2  # 0-1之间的平滑脉动
                 
@@ -1271,22 +882,19 @@ class FloatingWindow:
                 draw.ellipse([dot_x - dot_size, mic_y - dot_size,
                              dot_x + dot_size, mic_y + dot_size], fill=dot_color)
                 
-                # 多步高质量缩放以获得完美抗锯齿效果
-                # 第一步：从12x缩放到6x
-                img_6x = img.resize((w * 6, h * 6), Image.Resampling.LANCZOS)
-                # 第二步：从6x缩放到3x
-                img_3x = img_6x.resize((w * 3, h * 3), Image.Resampling.LANCZOS)
-                # 第三步：从3x缩放到最终尺寸
-                img_final = img_3x.resize((w, h), Image.Resampling.LANCZOS)
+                # 多步缩放以获得最佳抗锯齿效果
+                # 第一步：从8x缩放到4x
+                img_4x = img.resize((w * 4, h * 4), Image.Resampling.LANCZOS)
+                # 第二步：从4x缩放到2x
+                img_2x = img_4x.resize((w * 2, h * 2), Image.Resampling.LANCZOS)
+                # 第三步：从2x缩放到最终尺寸
+                img_final = img_2x.resize((w, h), Image.Resampling.LANCZOS)
                 
-                # 高级边缘平滑处理
+                # 可选：添加轻微的高斯模糊来进一步平滑边缘
                 try:
-                    # 轻微模糊消除锯齿
-                    img_final = img_final.filter(ImageFilter.GaussianBlur(radius=0.2))
-                    # 锐化处理保持清晰度
-                    img_final = img_final.filter(ImageFilter.UnsharpMask(radius=1, percent=120, threshold=0))
+                    img_final = img_final.filter(ImageFilter.GaussianBlur(radius=0.3))
                 except:
-                    pass
+                    pass  # 如果不支持滤镜则跳过
                 
                 # 存储图像引用以防止垃圾回收
                 self.recording_icon_image = ImageTk.PhotoImage(img_final)
@@ -1352,107 +960,55 @@ class FloatingWindow:
         c.create_arc(mic_x - 5, mic_y + 6, mic_x + 5, mic_y + 12,
                     start=0, extent=180, outline=mic_color, width=1, style='arc')
         
-        # 绘制动态波形 - 填满整个按钮区域 (Tkinter版本)
-        wave_start_x = 25  # 从麦克风图标右侧开始
-        wave_end_x = w - 15  # 到按钮右侧结束
-        wave_width = wave_end_x - wave_start_x
+        # 绘制动态波形 - 使用真实音频电平数据
+        import math
+        wave_x = center_x + 8
         wave_color = 'white'
         
         # 获取当前音频电平 - 增加幅度
         current_level = getattr(self, '_level', 0.0) * self.wave_gain
         current_level = max(0.0, min(1.0, current_level))  # 限制在0-1之间
         
-        # 计算波形条数量，填满可用空间
-        bar_width = 3
-        bar_spacing = 1
-        num_bars = max(12, wave_width // (bar_width + bar_spacing))  # 至少12个波形条
+        # 基础波形高度 - 增加基础高度
+        base_heights = [4, 8, 6, 12, 8, 10, 4]  # 基础高度翻倍
         
-        # 动态生成波形高度，确保填满空间
-        base_heights = []
-        for i in range(num_bars):
-            # 创建更自然的波形分布
-            center_pos = num_bars // 2
-            distance_from_center = abs(i - center_pos) / center_pos
-            base_height = int(8 + 16 * (1.0 - distance_from_center * 0.5))  # 中间高，两边低
-            base_heights.append(base_height)
-        
-        # 使用真实波形数据或模拟真实音频效果
-        wave_samples = getattr(self, '_wave_samples', [])
-        
-        if len(wave_samples) > 0 and current_level > 0.01:
-            # 有真实波形数据，使用实际音频样本
-            num_bars = len(base_heights)
-            samples_per_bar = max(1, len(wave_samples) // num_bars)
-            
+        # 如果有音频信号，使用实时数据；否则使用低强度动画
+        if current_level > 0.01:  # 有声音输入
             for i, base_height in enumerate(base_heights):
-                # 获取对应的音频样本段
-                start_idx = i * samples_per_bar
-                end_idx = min(start_idx + samples_per_bar, len(wave_samples))
-                bar_samples = wave_samples[start_idx:end_idx]
+                # 使用真实音频电平 + 轻微的频率差异
+                freq_variation = 1.0 + (i - 3) * 0.15  # 增加频率差异
+                level_variation = current_level * freq_variation
+                level_variation = max(0.2, min(1.0, level_variation))  # 最小高度20%
                 
-                if bar_samples:
-                    # 计算RMS值作为波形高度
-                    rms = (sum(s * s for s in bar_samples) / len(bar_samples)) ** 0.5
-                    rms = max(0.0, min(1.0, rms * self.wave_gain * 3))  # 进一步增加增益
-                else:
-                    rms = 0.0
+                # 添加轻微的时间延迟模拟频谱
+                time_offset = self._anim_phase * 0.1 + i * 0.2
+                smooth_factor = 0.8 + 0.2 * math.sin(time_offset)
                 
-                # 更动感的变化效果
-                time_variation = 0.8 + 0.4 * math.sin(self._anim_phase * 0.15 + i * 0.4)
-                frequency_boost = 1.0 + 0.3 * math.sin(self._anim_phase * 0.1 + i * 0.6)
-                final_height = base_height * (0.2 + rms * 0.8) * time_variation * frequency_boost
+                final_height = base_height * level_variation * smooth_factor
                 bar_height = int(final_height)
                 
-                x = wave_start_x + i * (bar_width + bar_spacing)
+                x = wave_x + i * 3
                 y_top = center_y - bar_height // 2
                 y_bottom = center_y + bar_height // 2
-                
-                # 绘制填满空间的波形条
-                c.create_rectangle(x, y_top, x + bar_width, y_bottom,
-                                 fill=wave_color, outline='', width=0)
-                                 
-        elif current_level > 0.01:  # 有声音但没有波形数据，使用高级电平模拟
-            for i, base_height in enumerate(base_heights):
-                # 更复杂的频谱模拟
-                freq_center = len(base_heights) // 2
-                freq_distance = abs(i - freq_center) / freq_center
-                freq_variation = 1.0 + (0.5 - freq_distance) * 0.6 * math.sin(self._anim_phase * 0.2)
-                level_variation = current_level * abs(freq_variation)
-                level_variation = max(0.1, min(1.0, level_variation))
-                
-                # 更动感的时间变化
-                time_offset = self._anim_phase * 0.12 + i * 0.3
-                smooth_factor = 0.6 + 0.4 * math.sin(time_offset)
-                beat_factor = 1.0 + 0.2 * math.sin(self._anim_phase * 0.05)  # 慢节拍
-                
-                final_height = base_height * level_variation * smooth_factor * beat_factor
-                bar_height = int(final_height)
-                
-                x = wave_start_x + i * (bar_width + bar_spacing)
-                y_top = center_y - bar_height // 2
-                y_bottom = center_y + bar_height // 2
-                
-                # 绘制填满空间的波形条
-                c.create_rectangle(x, y_top, x + bar_width, y_bottom,
-                                 fill=wave_color, outline='', width=0)
+                c.create_rectangle(x, y_top, x + 2, y_bottom,
+                                 fill=wave_color, outline='')
         else:
-            # 静音时显示优雅的待机动画
+            # 静音时显示低强度的待机动画
             for i, base_height in enumerate(base_heights):
-                time_factor = (self._anim_phase * 0.03 + i * 0.5)
-                idle_amplitude = 0.08 + 0.05 * math.sin(time_factor)  # 更微弱的待机动画
+                time_factor = (self._anim_phase * 0.1 + i * 0.5)
+                idle_amplitude = 0.3 + 0.2 * math.sin(time_factor)  # 增加待机波动
                 
                 final_height = base_height * idle_amplitude
-                bar_height = max(1, int(final_height))
+                bar_height = int(final_height)
                 
-                x = wave_start_x + i * (bar_width + bar_spacing)
+                x = wave_x + i * 3
                 y_top = center_y - bar_height // 2
                 y_bottom = center_y + bar_height // 2
-                
-                # 半透明待机波形 - 使用较淡的颜色
-                c.create_rectangle(x, y_top, x + bar_width, y_bottom,
-                                 fill='#888888', outline='', width=0)
+                c.create_rectangle(x, y_top, x + 2, y_bottom,
+                                 fill=wave_color, outline='')
         
         # 录音指示点 - 更自然的脉动
+        import math
         dot_time = self._anim_phase * 0.3  # 慢一点的脉动
         dot_alpha = (math.sin(dot_time) + 1) / 2  # 0-1之间的平滑脉动
         
@@ -1511,8 +1067,18 @@ class FloatingWindow:
                 self.window.after_cancel(self._anim_job)
                 self._anim_job = None
             
-            # 进入处理状态而不是直接回到静止状态
-            self.start_processing()
+            # 立即绘制静止图标
+            if getattr(self, 'icon_canvas', None):
+                self._draw_idle_icon()
+                
+            # 更新其他UI元素
+            if getattr(self, 'record_button', None):
+                self.record_button.configure(
+                    text="🎤 录音",
+                    bg='#3498db'
+                )
+            if getattr(self, 'status_label', None):
+                self.status_label.configure(text="准备就绪")
             
             logger.info("悬浮窗：停止录音")
             
@@ -1553,10 +1119,6 @@ class FloatingWindow:
                 self._start_timer()
             elif status_text.startswith("🔄 ") or status_text.startswith("✅ ") or status_text.startswith("❌ "):
                 self._stop_timer()
-                # 在状态切换后确保文本框获得焦点
-                if hasattr(self, 'text_widget') and self.text_widget:
-                    self.text_widget.focus_set()
-                    logger.info("状态切换后已设置焦点到文本框")
 
     def set_text(self, text: str):
         """设置显示文本：status 模式写入只读显示框；full 模式写入可编辑框"""
@@ -1693,8 +1255,6 @@ class FloatingWindow:
     def reset_state(self):
         """重置状态"""
         self.is_recording = False
-        self.is_processing = False
-        self.is_transcribing = False
         self.is_translating = False
         
         if self.record_button:
@@ -1718,11 +1278,6 @@ class FloatingWindow:
         
         if self.status_label:
             self.status_label.configure(text="准备就绪")
-            
-        # 确保文本框获得焦点
-        if hasattr(self, 'text_widget') and self.text_widget:
-            self.text_widget.focus_set()
-            logger.info("已重新设置焦点到文本框")
     
     def show(self):
         """显示悬浮窗"""
@@ -1730,10 +1285,6 @@ class FloatingWindow:
             self.window.deiconify()
             self.is_visible = True
             self.follow_mouse = False  # 不跟随鼠标移动
-            # 确保文本框获得焦点
-            if hasattr(self, 'text_widget') and self.text_widget:
-                self.text_widget.focus_set()
-                logger.info("已设置焦点到文本框")
     
     def hide(self):
         """隐藏悬浮窗（status模式不隐藏）"""

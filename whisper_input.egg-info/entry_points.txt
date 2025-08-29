@@ -1,5 +1,0 @@
-[console_scripts]
-whisper-input = src.windows_app:main
-
-[gui_scripts]
-whisper-input-gui = src.windows_app:main

@@ -35,3 +35,9 @@ dist/
 /.vs
 /assets
 /examples
+wisinput.egg-info/dependency_links.txt
+wisinput.egg-info/entry_points.txt
+wisinput.egg-info/PKG-INFO
+wisinput.egg-info/requires.txt
+wisinput.egg-info/SOURCES.txt
+wisinput.egg-info/top_level.txt
