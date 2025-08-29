@@ -29,7 +29,7 @@ def run_server():
     
     
 # 创建应用实例供 uvicorn 使用
-    from speaches.main import create_app
+    from speaches.src.speaches.main import create_app
     app=create_app()
     app = uvicorn.run(app, host="127.0.0.1", port=8000,factory=True)
 
