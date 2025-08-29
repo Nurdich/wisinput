@@ -43,5 +43,5 @@ repository = "https://github.com/nurdich/wisinput"
 documentation = "https://wisinput.readthedocs.io/"
 
 [project.scripts]
-wisinput = "wisinput.windows_app:main"
+wisinput = "windows_app:main"
 speaches = "speaches.main:create_app"
