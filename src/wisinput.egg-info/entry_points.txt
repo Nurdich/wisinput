@@ -1,0 +1,3 @@
+[console_scripts]
+speaches = speaches.main:create_app
+wisinput = wisinput.windows_app:main

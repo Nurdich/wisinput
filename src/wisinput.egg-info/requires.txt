@@ -1,0 +1,16 @@
+colorlog>=6.9.0
+dotenv>=0.9.9
+gradio>=5.44.1
+httpx-sse>=0.4.1
+numpy>=2.3.2
+openai>=1.0.0
+opencc>=1.1.9
+pycaw>=20240210
+pynput>=1.8.1
+pyperclip>=1.9.0
+pystray>=0.19.5
+sounddevice>=0.5.2
+soundfile>=0.13.1
+speaches
+speaches-cli
+uvicorn>=0.35.0
