@@ -8,7 +8,7 @@ WisInput - 智能语音输入工具
     或者安装后直接运行: wisinput
 """
 
-from src.windows_app import main
+from .windows_app import main
 
 if __name__ == "__main__":
     main()

@@ -14,11 +14,11 @@ import threading
 import pystray
 from PIL import Image, ImageDraw
 
-from src.utils.logger import logger
-from src.transcription.google_ai import GoogleAiProcessor
-from src.transcription.local_model import LocalModelProcessor
-from src.keyboard.listener import KeyboardManager
-from src.audio.recorder import AudioRecorder
+from .utils.logger import logger
+from .transcription.google_ai import GoogleAiProcessor
+from .transcription.local_model import LocalModelProcessor
+from .keyboard.listener import KeyboardManager
+from .audio.recorder import AudioRecorder
 
 
 def run_server():
@@ -67,7 +67,7 @@ class TrayApp:
         self.enable_floating_window = os.getenv("ENABLE_FLOATING_WINDOW", "true").lower() == "true"
         if self.enable_floating_window:
             try:
-                from src.keyboard.floating_window import FloatingWindow
+                from .keyboard.floating_window import FloatingWindow
                 self.floating_window = FloatingWindow(
                     on_record_start=self.start_transcription_recording,
                     on_record_stop=self.stop_transcription_recording,
